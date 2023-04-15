@@ -2,55 +2,64 @@ import httpx
 import itertools
 import os
 from datetime import datetime
-request = '%20'.join([''.join([l for l in letter if l.isalnum()]) for letter in input(
-    'Enter your search request: ').split()])
-print(request)
-page_num = itertools.count(1)
-url = f"https://api.pexels.com/v1/search/?page={next(page_num)}&per_page=10&query={request}"
-print(url)
-headers = {
-    'Authorization': 'DTjupNdHYTzWLml43pfzssxY1irC0VPrKXGzrQyHYS4av62lxd0zJ7Yb'}
-link_list = []
+from tqdm import tqdm
+import asyncio
+from math import ceil
 
 
-def link_gettin(url):
-    with httpx.Client() as client:
-        content = client.get(url, headers=headers)
-        while True:
-            if not content.status_code == 200:
-                print(content.status_code)
-                break
-            if "next_page" not in content.json().keys():
-                link_list.extend([pics.get('src').get('original')
-                                  for pics in content.json().get('photos')])
-                break
-            link_list.extend([pics.get('src').get('original')
-                             for pics in content.json().get('photos')])
-            print('Moving to the next page...')
-            url = f"https://api.pexels.com/v1/search/?page={next(page_num)}&per_page=80&query={request}"
-            content = client.get(url, headers=headers)
+async def main():
+    # get the user's search request and format it for the API query
+    request = '%20'.join([l for l in input(
+        'Enter your search request: ').split() if l.isalnum() or l == " "])
+    # set the initial page number to 1 and display the search query
+    page_num = itertools.count(1)
+    print(f'Looking for pictures by "{request}" keyword...')
+    url = f"https://api.pexels.com/v1/search/?page=1&per_page=80&query={request}"
+    headers = {
+        'Authorization': 'DTjupNdHYTzWLml43pfzssxY1irC0VPrKXGzrQyHYS4av62lxd0zJ7Yb'}
+    # create an empty list to store image URLs
+    link_list = []
 
+    async def link_gettin():
+        # construct the API request URL with the current page number
+        url = f"https://api.pexels.com/v1/search/?page={next(page_num)}&per_page=80&query={request}"
+        # send an asynchronous request to the API and parse the JSON response
+        content = await client.get(url, headers=headers)
+        content_json = content.json()
+        # extract the list of photos from the response and add their URLs to the link_list
+        page_photos_list = content_json.get('photos')
+        for pics in page_photos_list:
+            link_list.append(pics.get('src').get('tiny'))
 
-def link_writin(link_list):
-    print('Going to download pics now..')
-    with open(f'{request}_photos.txt', 'w') as f:
-        for line in link_list:
-            f.write(line + '\n')
+    # def link_writin(link_list): # write the list of image URLs to a text file
+    #     print('Going to download pics now..')
+    #     with open(f'{request}_photos.txt', 'w') as f:
+    #         for line in link_list:
+    #             f.write(line + '\n')
 
+    def pic_downloadin(list_with_links):
+        # create a folder to store the downloaded images
+        title = f'{request}_{datetime.now().strftime("%B_%d_%H_%M")}'
+        os.mkdir(title)
+        os.chdir(title)
+        # download each image using the httpx library and display progress with tqdm
+        with httpx.Client() as client:
+            for link in tqdm(list_with_links, desc='Downloading pictures...'):
+                with open(f"{link.split('/')[-1].split('.')[0]}.jpg", 'bw') as f:
+                    f.write(client.get(link).content)
+        print(f'Pictures are stored in: {os.path.abspath(os.getcwd())}')
 
-def pic_downloadin(links):
-    title = f'{request}_{datetime.now().strftime("%d:%H:%M")}'
-    os.mkdir(title)
-    os.chdir(title)
-    with httpx.Client() as client:
-        for link in links:
-            print(link.split('-')[-2])
-            with open(f"{link.split('/')[-1].split('.')[0]}.jpg", 'bw') as f:
-                f.write(client.get(link).content)
+    # create an asynchronous httpx client and send a request to the API
+    async with httpx.AsyncClient() as client:
+        content = await client.get(url, headers=headers)
+        content_json = content.json()
+        page_count = ceil(int(content_json.get('total_results'))/80)
+        await asyncio.gather(*[link_gettin() for _ in range(1, page_count+1)])
+        # display the total number of images found and raise an error if none were found
+        print(f'{len(link_list)} pictures found in total...')
+        assert len(
+            link_list) > 0, f'No pictures were found by your request..'
+        pic_downloadin(link_list)
 
-    print(f'Photos are stored in {os.path.abspath(os.getcwd())}')
-
-
-link_gettin(url)
-link_writin(link_list)
-pic_downloadin(link_list)
+if __name__ == '__main__':
+    asyncio.run(main())
