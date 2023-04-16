@@ -29,7 +29,8 @@ async def main():
         # extract the list of photos from the response and add their URLs to the link_list
         page_photos_list = content_json.get('photos')
         for pics in page_photos_list:
-            link_list.append(pics.get('src').get('tiny'))
+            # getting urls of pics in original size
+            link_list.append(pics.get('src').get('original'))
 
     # def link_writin(link_list): # write the list of image URLs to a text file
     #     print('Going to download pics now..')
