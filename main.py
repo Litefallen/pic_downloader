@@ -5,7 +5,10 @@ from datetime import datetime
 from tqdm import tqdm
 import asyncio
 from math import ceil
+import dotenv
 
+dotenv.load_dotenv() # hide API key
+my_api_key = os.environ.get('API')
 
 async def main():
     # get the user's search request and format it for the API query
@@ -16,7 +19,7 @@ async def main():
     print(f'Looking for pictures by "{request}" keyword...')
     url = f"https://api.pexels.com/v1/search/?page=1&per_page=80&query={request}"
     headers = {
-        'Authorization': 'DTjupNdHYTzWLml43pfzssxY1irC0VPrKXGzrQyHYS4av62lxd0zJ7Yb'}
+        'Authorization': my_api_key}
     # create an empty list to store image URLs
     link_list = []
 
